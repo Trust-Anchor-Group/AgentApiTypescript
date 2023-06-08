@@ -9,14 +9,14 @@ import Base64 from 'crypto-js/enc-base64';
 
 const host = 'lab.tagroot.io';
 const ApiKey =
-  '704bb45a06d04b71b4712815192acbd18af0955e4e723ea5898f01d59d5e5df5';
+  '';
 const Secret =
-  '5b2719107561ddcf1afc5e9c9b276e3dcf18d081de0004052f5bc0df326d5f5c';
+  '';
 const Seconds = 3500;
 //sessiontimeout
 //60seconds
 
-const baseURL = 'https://lab.tagroot.io';
+const baseURL = '';
 
 const requestOptions = (headers: Headers, raw: string) => ({
   method: 'POST',
