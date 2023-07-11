@@ -2,32 +2,55 @@ import {
   storeUserSession,
   retrieveUserSession,
   removeUserSession,
-} from './Storage/Storage'
+} from '../Storage';
 import { TextEncoder } from 'text-decoding';
 import hmacSHA256 from 'crypto-js/hmac-sha256';
 import Base64 from 'crypto-js/enc-base64';
+import Config from 'react-native-config';
 
-const host = 'lab.tagroot.io';
-const ApiKey =
-  '';
-const Secret =
-  '';
+const host = Config.Host;
+const ApiKey = Config.ApiKey;
+const Secret = Config.Secret;
 const Seconds = 3500;
-//sessiontimeout
-//60seconds
-
-const baseURL = '';
-
-const requestOptions = (headers: Headers, raw: string) => ({
-  method: 'POST',
-  headers: headers,
-  body: raw,
-  redirect: 'follow',
-});
 
 export const AgentAPI = {
   IO: {
     Request: async function (
+      Resource: string,
+      RequestPayload: any,
+      Internal?: any
+    ) {
+      const Request = new Promise(async (SetResult, SetException) => {
+        let xhttp = new XMLHttpRequest();
+        xhttp.onreadystatechange = function () {
+          if (xhttp.readyState == 4) {
+            let Response = xhttp.responseText;
+
+            if (xhttp.status === 200) {
+              Response = JSON.parse(Response);
+              SetResult(Response);
+            } else SetException(Response);
+
+            if (!Internal) AgentAPI.IO.AfterResponse(Response);
+          }
+        };
+
+        if (!Internal) this.BeforeRequest(RequestPayload);
+
+        xhttp.open('POST', Config.AGENT_API_URL + Resource);
+        xhttp.setRequestHeader('Content-Type', 'application/json');
+        xhttp.setRequestHeader('Accept', 'application/json');
+
+        var Token = await AgentAPI.Account.GetSessionString('AgentAPI.Token');
+        if (Token) xhttp.setRequestHeader('Authorization', 'Bearer ' + Token);
+
+        xhttp.send(JSON.stringify(RequestPayload));
+      });
+
+      return await Request;
+    },
+    GetRequestWithDomain: async function (
+      Domain: string,
       Resource: string,
       RequestPayload: any,
       Internal?: any
@@ -48,11 +71,11 @@ export const AgentAPI = {
 
         if (!Internal) this.BeforeRequest(RequestPayload);
 
-        xhttp.open('POST', baseURL + Resource);
-        xhttp.setRequestHeader('Content-Type', 'application/json');
-
-        var Token = await AgentAPI.Account.GetSessionString('AgentAPI.Token');
-        if (Token) xhttp.setRequestHeader('Authorization', 'Bearer ' + Token);
+        xhttp.open('GET', 'https://' + Domain + Resource);
+        xhttp.setRequestHeader("Accept", "application/json");
+        xhttp.setRequestHeader("Accept-Language", "en");
+        xhttp.setRequestHeader("Content-Type", "text/plain");
+        
 
         xhttp.send(JSON.stringify(RequestPayload));
       });
@@ -270,14 +293,17 @@ export const AgentAPI = {
       const OldTimer = this.GetSessionInt('AgentAPI.RefreshTimer');
       if (OldTimer) {
         AgentAPI.IO.Log('Stopping previous session timer.');
-        // window.clearTimeout(OldTimer);
+        clearTimeout(OldTimer);
       }
 
       const Now = Math.round(Date.now() / 1000);
 
       this.SetSessionString('AgentAPI.Token', Token);
       this.SetSessionInt('AgentAPI.Seconds', Seconds);
-      // this.SetSessionInt("AgentAPI.RefreshTimer", window.setTimeout(this.RefreshToken, 1000 * Next));
+      this.SetSessionInt(
+        'AgentAPI.RefreshTimer',
+        setTimeout(this.RefreshToken, 1000 * Next)
+      );
       this.SetSessionInt('AgentAPI.RefreshTimerElapses', Now + Next);
       this.SetSessionInt('AgentAPI.RefreshTimerExpires', Now + Seconds);
 
@@ -288,6 +314,16 @@ export const AgentAPI = {
           Seconds +
           's'
       );
+    },
+    GetDomainInfo: async function (domain: string) {
+
+      const Request = {};
+      const Response = await AgentAPI.IO.GetRequestWithDomain(
+        domain,
+        '/Agent/Account/DomainInfo',
+        Request
+      );
+      return Response;
     },
     Create: async function (
       UserName: string,
@@ -320,7 +356,7 @@ export const AgentAPI = {
         seconds: Seconds,
       });
 
-			this.SetSessionString('AgentAPI.UserName', UserName);
+      this.SetSessionString('AgentAPI.UserName', UserName);
       this.SaveSessionToken(Response.jwt, Seconds, Math.round(Seconds / 2));
 
       return Response;
